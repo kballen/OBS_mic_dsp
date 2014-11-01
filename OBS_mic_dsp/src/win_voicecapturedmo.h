@@ -1,7 +1,7 @@
 #ifndef INCLUDED_win_voicecapturedmo_H
 #define INCLUDED_win_voicecapturedmo_H
 
-#include "OBS_mic_dsp.h"
+#include "OBSPlugin.h"
 #include <dmo.h>
 
 class WinVoiceCaptureDMOMethod : public OBSPlugin

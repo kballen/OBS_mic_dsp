@@ -32,6 +32,9 @@ private:
 
 public:
 
+    CMediaBuffer(const CMediaBuffer &) = delete;
+    CMediaBuffer &operator=(const CMediaBuffer &) = delete;
+
     // Function to create a new IMediaBuffer object and return 
     // an AddRef'd interface pointer.
     static HRESULT Create(long maxLength, IMediaBuffer **buffer)

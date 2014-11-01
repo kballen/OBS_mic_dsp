@@ -23,13 +23,13 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\OBS_mic_dsp.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\win_voicecapturedmo.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\CMediaBuffer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\OBSPlugin.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -163,7 +163,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\CMediaBuffer.h" />
-    <ClInclude Include="src\OBS_mic_dsp.h" />
+    <ClInclude Include="src\OBSPlugin.h" />
     <ClInclude Include="src\win_voicecapturedmo.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

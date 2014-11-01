@@ -1,10 +1,10 @@
-#include "OBS_mic_dsp.h"
+#include "OBSPlugin.h"
 #include "win_voicecapturedmo.h"
 
 OBSPlugin *OBSPlugin::g_instance = nullptr;
 HINSTANCE OBSPlugin::g_dllInstance = nullptr;
 
-bool LoadPlugin(void)
+extern "C" __declspec(dllexport) bool LoadPlugin(void)
 {
     if(OBSPlugin::g_instance)
         return false;
@@ -13,36 +13,36 @@ bool LoadPlugin(void)
     return true;
 }
 
-void UnloadPlugin(void)
+extern "C" __declspec(dllexport) void UnloadPlugin(void)
 {
     delete OBSPlugin::g_instance;
     OBSPlugin::g_instance = nullptr;
 }
 
-void OnStartStream(void)
+extern "C" __declspec(dllexport) void OnStartStream(void)
 {
     if(OBSPlugin::g_instance)
         OBSPlugin::g_instance->OnStartStream();
 }
 
-void OnStopStream(void)
+extern "C" __declspec(dllexport) void OnStopStream(void)
 {
     if(OBSPlugin::g_instance)
         OBSPlugin::g_instance->OnStopStream();
 }
 
-void OnMicVolumeChanged(float level, bool muted, bool finalValue)
+extern "C" __declspec(dllexport) void OnMicVolumeChanged(float level, bool muted, bool finalValue)
 {
     if(OBSPlugin::g_instance)
         OBSPlugin::g_instance->OnMicVolumeChanged(level, muted, finalValue);
 }
 
-CTSTR GetPluginName(void)
+extern "C" __declspec(dllexport) CTSTR GetPluginName(void)
 {
     return TEXT("OBS microphone DSP plugin");
 }
 
-CTSTR GetPluginDescription(void)
+extern "C" __declspec(dllexport) CTSTR GetPluginDescription(void)
 {
     return TEXT("Installs a DSP that automatically improves the quality of the microphone audio.");
 }
