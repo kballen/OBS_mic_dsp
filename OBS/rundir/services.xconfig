@@ -1,0 +1,111 @@
+services : {
+  Twitch : {
+    id : 1
+    servers : {
+      "US West: San Francisco, CA"           : rtmp://live.twitch.tv/app
+      "Asia: Singapore"                      : rtmp://live-sin-backup.twitch.tv/app
+      "EU: Amsterdam, NL"                    : rtmp://live-ams.twitch.tv/app
+      "EU: Frankfurt, DE"                    : rtmp://live-fra.twitch.tv/app
+      "EU: London, UK"                       : rtmp://live-lhr.twitch.tv/app
+      "EU: Paris, FR"                        : rtmp://live-cdg.twitch.tv/app
+      "EU: Prague, CZ"                       : rtmp://live-prg.twitch.tv/app
+      "EU: Stockholm, SE"                    : rtmp://live-arn.twitch.tv/app
+      "US Central: Dallas, TX"               : rtmp://live-dfw.twitch.tv/app
+      "US East: Ashburn, VA"                 : rtmp://live-iad.twitch.tv/app
+      "US East: Miami, FL"                   : rtmp://live-mia.twitch.tv/app
+      "US East: New York, NY"                : rtmp://live-jfk.twitch.tv/app
+      "US Midwest: Chicago, IL"              : rtmp://live-ord.twitch.tv/app
+      "US West: Los Angeles, CA"             : rtmp://live-lax.twitch.tv/app
+    }
+    recommended : {
+      "keyint" : 2000
+      "profile" : "main"
+      "ratecontrol" : "cbr"
+      "max bitrate" : 3500
+      "max audio bitrate aac" : 160
+      "max audio bitrate mp3" : 128
+      "video aspect ratio" : "16:9"
+    }
+  }
+  "Vaughn Live / iNSTAGIB.tv" : {
+    id : 3
+    servers : {
+      "US: Primary"           : rtmp://live.vaughnsoft.net:443/live
+      "US: Chicago, IL"       : rtmp://live-ord.vaughnsoft.net:443/live
+      "US: New York, NY"      : rtmp://live-nyc.vaughnsoft.net:443/live
+      "US: New York 2, NY"    : rtmp://live-nyc2.vaughnsoft.net:443/live
+      "US: Ashburn, VA"       : rtmp://live-iad.vaughnsoft.net:443/live
+      "EU: Amsterdam, NL"     : rtmp://live-nl.vaughnsoft.net:443/live
+      "EU: Frankfurt, DE"     : rtmp://live-de.vaughnsoft.net:443/live
+    }
+  }
+  GoodGame.ru : {
+    id : 5
+    servers : {
+      "Моscow М9    : rtmp://bal.goodgame.ru:1940/live
+      "Moscow М10-1 : rtmp://stream.goodgame.ru:1940/live
+      "Моscow М10-2 : rtmp://stream3.goodgame.ru:1940/live
+      "Моscow М10-3 : rtmp://stream4.goodgame.ru:1940/live
+    }
+  }
+  DailyMotion : {
+    id : 6
+    servers : {
+      "Primary" :    rtmp://publish.dailymotion.com/publish-dm
+    }
+  }
+  Youtube : {
+    id : 9
+    servers : {
+      "Primary Youtube ingest server" : rtmp://a.rtmp.youtube.com/live2
+      "Backup Youtube ingest server" : rtmp://b.rtmp.youtube.com/live2?backup=1
+    }
+    recommended : {
+      "keyint"      : 2000
+    }
+  }
+  CyberGame.TV : {
+    id : 10
+    servers : {
+      "RU Origin"  : rtmp://st.cybergame.tv:1953/live
+      "RU Premium" : rtmp://premium.cybergame.tv:1953/premium
+      "EU Premium" : rtmp://vod5.cybergame.tv:1953/live/
+    }
+  }
+  hitbox.tv : {
+    id : 11
+    servers : {
+      "Default"                 : rtmp://live.hitbox.tv/push
+      "Asia: Hong Kong"         : rtmp://live.hkg.hitbox.tv/push
+      "Asia: South Korea"       : rtmp://live.icn.hitbox.tv/push
+      "EU: Austria"             : rtmp://live.vie.hitbox.tv/push
+      "EU: Germany 1"           : rtmp://live.fra.hitbox.tv/push
+      "EU: Germany 2"           : rtmp://live.nbg.hitbox.tv/push
+      "EU: Russia"              : rtmp://live.dme.hitbox.tv/push
+      "EU: UK"                  : rtmp://live.lhr.hitbox.tv/push
+      "Oceania: Australia"      : rtmp://live.syd.hitbox.tv/push
+      "South America: Brazil"   : rtmp://live.gru.hitbox.tv/push
+      "US Central: Colorado"    : rtmp://live.den.hitbox.tv/push
+      "US East: Virginia"       : rtmp://live.vgn.hitbox.tv/push
+      "US West: California"     : rtmp://live.lax.hitbox.tv/push
+    }
+    recommended : {
+      "keyint" : 2000
+      "ratecontrol" : "cbr"
+      "supported audio codec" : "AAC"
+      "video aspect ratio" : "16:9"
+    }
+  }
+  connectcast.tv : {
+    id : 12
+    servers : {
+      "Default"     : rtmp://stream.connectcast.tv/live
+    }
+  }
+  Azubu.tv : {
+    id : 13
+    servers : {
+      "API" : https://web-api.azubu.tv/stream/broadcaster-key/
+    }
+  }
+}
