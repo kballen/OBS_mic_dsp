@@ -50,37 +50,38 @@ static HRESULT SetBoolProperty(IPropertyStore *ps, REFPROPERTYKEY key, bool valu
 
 bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::Initialize(void)
 {
+#define TRACE(x) traceCall = TEXT(#x), hr = x
+    const TCHAR *traceCall = TEXT("<nothing>");
+    HRESULT hr = 0;
+
     if(_dmo)
         // Only call once!
         return false;
 
-    HRESULT hr = CoCreateInstance(
-        __uuidof(CWMAudioAEC),
-        nullptr,
-        CLSCTX_INPROC_SERVER,
-        IID_PPV_ARGS(&_dmo));
+    TRACE(CoCreateInstance(__uuidof(CWMAudioAEC), nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&_dmo)));
 
     if(FAILED(hr) || !_dmo)
     {
         SafeRelease(_dmo);
+        Log(TEXT("Initialization of VoiceCaptureDMOSource failed on %s with hr = 0x%lX"), traceCall, (unsigned long) hr);
         return false;
     }
     
     // Set DMO properties
     IPropertyStore *ps = nullptr;
-    hr = _dmo->QueryInterface(IID_PPV_ARGS(&ps));
+    TRACE(_dmo->QueryInterface(IID_PPV_ARGS(&ps)));
     if(ps && SUCCEEDED(hr))
     {
         // AEC enabled, no microphone array
-        hr = SetVtI4Property(ps, MFPKEY_WMAAECMA_SYSTEM_MODE, SINGLE_CHANNEL_AEC);
+        TRACE(SetVtI4Property(ps, MFPKEY_WMAAECMA_SYSTEM_MODE, SINGLE_CHANNEL_AEC));
 
         // Enable feature mode - unlocks other properties
         if(SUCCEEDED(hr))
-            hr = SetBoolProperty(ps, MFPKEY_WMAAECMA_FEATURE_MODE, true);
+            TRACE(SetBoolProperty(ps, MFPKEY_WMAAECMA_FEATURE_MODE, true));
 
         // Enable AGC
         if(SUCCEEDED(hr))
-            hr = SetBoolProperty(ps, MFPKEY_WMAAECMA_FEATR_AGC, true);
+            TRACE(SetBoolProperty(ps, MFPKEY_WMAAECMA_FEATR_AGC, true));
     }
     SafeRelease(ps);
 
@@ -95,7 +96,7 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::Initialize(void)
         mt.bTemporalCompression = FALSE;
         mt.formattype = FORMAT_WaveFormatEx;
 
-        hr = MoInitMediaType(&mt, sizeof(WAVEFORMATEX));
+        TRACE(MoInitMediaType(&mt, sizeof(WAVEFORMATEX)));
         if(SUCCEEDED(hr))
         {
             WAVEFORMATEX *wav = (WAVEFORMATEX *) mt.pbFormat;
@@ -107,13 +108,13 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::Initialize(void)
             wav->wBitsPerSample = 8 * sizeof(float);
             wav->cbSize = 0;
 
-            hr = _dmo->SetOutputType(0, &mt, 0);
+            TRACE(_dmo->SetOutputType(0, &mt, 0));
             MoFreeMediaType(&mt);
         }
     }
 
     if(SUCCEEDED(hr))
-        hr = _dmo->AllocateStreamingResources();
+        TRACE(_dmo->AllocateStreamingResources());
 
     if(SUCCEEDED(hr))
     {
@@ -125,8 +126,10 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::Initialize(void)
     else
     {
         SafeRelease(_dmo);
+        Log(TEXT("Initialization of VoiceCaptureDMOSource failed on %s with hr = 0x%lX"), traceCall, (unsigned long) hr);
         return false;
     }
+#undef TRACE
 }
 
 CTSTR WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::GetDeviceName(void) const
