@@ -90,7 +90,7 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::Initialize(void)
         // Set output media type
         DMO_MEDIA_TYPE mt;
         mt.majortype = MEDIATYPE_Audio;
-        mt.subtype = MEDIASUBTYPE_IEEE_FLOAT;
+        mt.subtype = MEDIASUBTYPE_PCM;
         mt.lSampleSize = 0;
         mt.bFixedSizeSamples = TRUE;
         mt.bTemporalCompression = FALSE;
@@ -100,12 +100,12 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::Initialize(void)
         if(SUCCEEDED(hr))
         {
             WAVEFORMATEX *wav = (WAVEFORMATEX *) mt.pbFormat;
-            wav->wFormatTag = WAVE_FORMAT_IEEE_FLOAT;
+            wav->wFormatTag = WAVE_FORMAT_PCM;
             wav->nChannels = 1;
             wav->nSamplesPerSec = k_SampleRate;
-            wav->nAvgBytesPerSec = k_SampleRate * sizeof(float);
-            wav->nBlockAlign = sizeof(float);
-            wav->wBitsPerSample = 8 * sizeof(float);
+            wav->nAvgBytesPerSec = k_SampleRate * 2;
+            wav->nBlockAlign = 2;
+            wav->wBitsPerSample = 16;
             wav->cbSize = 0;
 
             TRACE(_dmo->SetOutputType(0, &mt, 0));
@@ -118,7 +118,7 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::Initialize(void)
 
     if(SUCCEEDED(hr))
     {
-        InitAudioData(true, 1, k_SampleRate, 0, 0, 0);
+        InitAudioData(false, 1, k_SampleRate, 16, 2, 0);
         _audioBuf.Clear();
         _numSamples = 0;
         return true;
@@ -143,7 +143,7 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::GetNextBuffer(void **buffe
     {
         // Fill a buffer from the DMO
         IMediaBuffer *buf;
-        HRESULT hr = CMediaBuffer::Create(k_SegmentSize * sizeof(float), &buf);
+        HRESULT hr = CMediaBuffer::Create(k_SegmentSize * 2, &buf);
         if(FAILED(hr))
         {
             return false;
@@ -158,7 +158,7 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::GetNextBuffer(void **buffe
             BYTE *data;
             DWORD len;
             buf->GetBufferAndLength(&data, &len);
-            unsigned int newSamples = len / sizeof(float);
+            unsigned int newSamples = len / 2;
             unsigned int newNumSamples = _numSamples + newSamples;
 
             // Expand audio buffer to accomodate new samples if necessary
@@ -169,10 +169,10 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::GetNextBuffer(void **buffe
             // TODO: Add push to talk support somehow
             float micVolume = OBSGetMicVolume();
             for(unsigned int i = 0; i < newSamples; i++)
-                ((float *) data)[i] *= micVolume;
+                ((int16_t *) data)[i] *= micVolume;
 
             // Copy new samples into audio buffer
-            mcpy(_audioBuf.Array() + _numSamples, data, newSamples * sizeof(float));
+            mcpy(_audioBuf.Array() + _numSamples, data, newSamples * 2);
             _numSamples = newNumSamples;
         }
 
@@ -193,9 +193,10 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::GetNextBuffer(void **buffe
 
 void WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::ReleaseBuffer(void)
 {
+    // Delete one segment-sized chunk from the beginning of the audio buffer
     if(_numSamples >= k_SegmentSize)
     {
-        mcpy(_audioBuf.Array(), _audioBuf.Array() + k_SegmentSize, (_numSamples - k_SegmentSize) * sizeof(float));
+        mcpy(_audioBuf.Array(), _audioBuf.Array() + k_SegmentSize, (_numSamples - k_SegmentSize) * 2);
         _numSamples -= k_SegmentSize;
     }
 }

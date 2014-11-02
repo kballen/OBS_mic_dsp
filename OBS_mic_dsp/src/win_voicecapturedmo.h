@@ -38,7 +38,7 @@ private:
 
     private:
         IMediaObject *_dmo;
-        List<float> _audioBuf;
+        List<int16_t> _audioBuf;
         unsigned int _numSamples;
 
         static const int k_SampleRate = 16000;
