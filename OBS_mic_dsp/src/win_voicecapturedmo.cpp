@@ -4,6 +4,8 @@
 #include <uuids.h>
 #include <mmreg.h>
 
+#define LOG_NAME TEXT("OBS_mic_dsp (WinVoiceCaptureDMOMethod)")
+
 /// WinVoiceCaptureDMOMethod::MicDiscardFilter implementation ///
 
 AudioSegment *WinVoiceCaptureDMOMethod::MicDiscardFilter::Process(AudioSegment *segment)
@@ -64,7 +66,7 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::Initialize(void)
     if(FAILED(hr) || !_dmo)
     {
         SafeRelease(_dmo);
-        Log(TEXT("Initialization of VoiceCaptureDMOSource failed on %s with hr = 0x%lX"), traceCall, (unsigned long) hr);
+        Log(TEXT("%s: Initialization of VoiceCaptureDMOSource failed on %s with hr = 0x%lX"), LOG_NAME, traceCall, (unsigned long) hr);
         return false;
     }
     
@@ -128,7 +130,7 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::Initialize(void)
     else
     {
         SafeRelease(_dmo);
-        Log(TEXT("Initialization of VoiceCaptureDMOSource failed on %s with hr = 0x%lX"), traceCall, (unsigned long) hr);
+        Log(TEXT("%s: Initialization of VoiceCaptureDMOSource failed on %s with hr = 0x%lX"), LOG_NAME, traceCall, (unsigned long) hr);
         return false;
     }
 #undef TRACE
@@ -242,12 +244,14 @@ void WinVoiceCaptureDMOMethod::OnStartStream(void)
     {
         delete _micFilter; _micFilter = nullptr;
         delete _auxSource; _auxSource = nullptr;
+        Log(TEXT("%s: DMO audio source initialization failed. Mic processing is NOT active."), LOG_NAME);
     }
     else
     {
         if(OBSGetMicAudioSource())
             OBSGetMicAudioSource()->AddAudioFilter(_micFilter);
         OBSAddAudioSource(_auxSource);
+        Log(TEXT("%s: Supplying processed mic audio via aux audio source."), LOG_NAME);
     }
 }
 
