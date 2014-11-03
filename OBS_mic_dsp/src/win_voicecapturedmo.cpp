@@ -17,7 +17,8 @@ AudioSegment *WinVoiceCaptureDMOMethod::MicDiscardFilter::Process(AudioSegment *
 
 WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::VoiceCaptureDMOSource()
     : _dmo(nullptr),
-    _numSamples(0)
+    _numSamples(0),
+    _skipNextRead(false)
 {
 }
 
@@ -121,6 +122,7 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::Initialize(void)
         InitAudioData(false, 1, k_SampleRate, 16, 2, 0);
         _audioBuf.Clear();
         _numSamples = 0;
+        _skipNextRead = false;
         return true;
     }
     else
@@ -139,6 +141,18 @@ CTSTR WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::GetDeviceName(void) const
 
 bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::GetNextBuffer(void **buffer, UINT *numFrames, QWORD *timestamp)
 {
+    // This is horrible.
+    // When I completed the bulk of this plugin and got initialization to pass, I wasn't expecting it to lock up the
+    // audio thread and crash OBS on stop stream. It turns out that you _cannot_ always return true from this function
+    // or you will get OBS stuck in an infinite loop. OBS will call this repeatedly until it returns false to drain
+    // data from the input sources, so it's expected that we return false after reading out all available data.
+    // Unfortunately DMOs don't seem to have an asynchronous mode or anything useful, so this hack will have to do.
+    if(_skipNextRead)
+    {
+        _skipNextRead = false;
+        return false;
+    }
+
     while(_numSamples < k_SegmentSize)
     {
         // Fill a buffer from the DMO
@@ -174,6 +188,10 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::GetNextBuffer(void **buffe
             // Copy new samples into audio buffer
             mcpy(_audioBuf.Array() + _numSamples, data, newSamples * 2);
             _numSamples = newNumSamples;
+
+            // If the next call to ProcessOutput would block, force the next read to be skipped and return false
+            if(!(dodb.dwStatus & DMO_OUTPUT_DATA_BUFFERF_INCOMPLETE))
+                _skipNextRead = true;
         }
 
         buf->Release();
