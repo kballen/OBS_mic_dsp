@@ -39,7 +39,7 @@ extern "C" __declspec(dllexport) void OnMicVolumeChanged(float level, bool muted
 
 extern "C" __declspec(dllexport) CTSTR GetPluginName(void)
 {
-    return TEXT("OBS microphone DSP plugin");
+    return TEXT("Microphone DSP plugin");
 }
 
 extern "C" __declspec(dllexport) CTSTR GetPluginDescription(void)
