@@ -3,6 +3,7 @@
 #include <propsys.h>
 #include <uuids.h>
 #include <mmreg.h>
+#include <mmdeviceapi.h>
 
 #define LOG_NAME TEXT("OBS_mic_dsp (WinVoiceCaptureDMOMethod)")
 
@@ -20,7 +21,8 @@ AudioSegment *WinVoiceCaptureDMOMethod::MicDiscardFilter::Process(AudioSegment *
 WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::VoiceCaptureDMOSource()
     : _dmo(nullptr),
     _numSamples(0),
-    _skipNextRead(false)
+    _skipNextRead(false),
+    _micBoost(0)
 {
 }
 
@@ -51,15 +53,99 @@ static HRESULT SetBoolProperty(IPropertyStore *ps, REFPROPERTYKEY key, bool valu
     return hr;
 }
 
+// This sure is a garbage function.
+static int FindEndpointIndex(String deviceId, EDataFlow dataFlow)
+{
+    if(!deviceId.IsValid())
+        return -1;
+
+#define CHECK(x) if(FAILED(x)) goto error
+    int rv = -1;
+    IMMDeviceEnumerator *devEnum = nullptr;
+    IMMDeviceCollection *devColl = nullptr;
+    IMMDevice *dev = nullptr;
+    UINT devCount;
+    LPWSTR devId;
+
+    CHECK(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&devEnum)));
+    CHECK(devEnum->EnumAudioEndpoints(dataFlow, DEVICE_STATE_ACTIVE, &devColl));
+    CHECK(devColl->GetCount(&devCount));
+    for(UINT i = 0; i < devCount; i++)
+    {
+        CHECK(devColl->Item(i, &dev));
+        CHECK(dev->GetId(&devId));
+
+        // Why does this have to be complicated...
+#ifdef UNICODE
+        if(wcscmp(deviceId.Array(), devId) == 0)
+        {
+            // Found device
+            rv = i;
+            CoTaskMemFree(devId);
+            break;
+        }
+#else
+  #error Use Unicode.
+#endif
+
+        CoTaskMemFree(devId);
+        SafeRelease(dev);
+    }
+
+error:
+    SafeRelease(dev);
+    SafeRelease(devColl);
+    SafeRelease(devEnum);
+    return rv;
+#undef CHECK
+}
+
 bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::Initialize(void)
 {
 #define TRACE(x) traceCall = TEXT(#x), hr = x
-    const TCHAR *traceCall = TEXT("<nothing>");
-    HRESULT hr = 0;
+    const TCHAR *traceCall;
+    HRESULT hr;
 
     if(_dmo)
         // Only call once!
         return false;
+
+    // Get OBS settings
+    String micDeviceId;
+    String playbackDeviceId;
+    _micBoost = 1.0;
+
+    ConfigFile cfg;
+    String cfgName;
+    cfgName << OBSGetAppDataPath() << TEXT("\\global.ini");
+    if(cfg.Open(cfgName))
+    {
+        String cfgProfile = cfg.GetString(TEXT("General"), TEXT("Profile"));
+        if(cfgProfile.IsValid())
+        {
+            cfgName.Clear() << OBSGetAppDataPath() << TEXT("\\profiles\\") << cfgProfile << TEXT(".ini");
+            if(cfg.Open(cfgName))
+            {
+                // Mic boost
+                int micBoost = cfg.GetInt(TEXT("Audio"), TEXT("MicBoostMultiple"), 1);
+                if(micBoost < 1)
+                    micBoost = 1;
+                else if(micBoost > 20)
+                    micBoost = 20;
+                _micBoost = (float) micBoost;
+
+                // Audio devices
+                micDeviceId = cfg.GetString(TEXT("Audio"), TEXT("Device"));
+                playbackDeviceId = cfg.GetString(TEXT("Audio"), TEXT("PlaybackDevice"));
+            }
+        }
+    }
+
+    // Look up audio endpoints
+    int micDeviceIdx = FindEndpointIndex(micDeviceId, eCapture);
+    int playbackDeviceIdx = FindEndpointIndex(playbackDeviceId, eRender);
+
+    Log(TEXT("%s: Device pair (%d,%d)"), LOG_NAME, micDeviceIdx, playbackDeviceIdx);
 
     TRACE(CoCreateInstance(__uuidof(CWMAudioAEC), nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&_dmo)));
 
@@ -77,6 +163,10 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::Initialize(void)
     {
         // AEC enabled, no microphone array
         TRACE(SetVtI4Property(ps, MFPKEY_WMAAECMA_SYSTEM_MODE, SINGLE_CHANNEL_AEC));
+
+        // Select audio endpoints
+        if(SUCCEEDED(hr))
+            TRACE(SetVtI4Property(ps, MFPKEY_WMAAECMA_DEVICE_INDEXES, (unsigned long) (playbackDeviceIdx << 16) | (unsigned long) (micDeviceIdx & 0xffff)));
 
         // Enable feature mode - unlocks other properties
         if(SUCCEEDED(hr))
@@ -183,9 +273,17 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::GetNextBuffer(void **buffe
 
             // Apply OBS mic volume level to new samples
             // TODO: Add push to talk support somehow
-            float micVolume = OBSGetMicVolume();
+            float micVolume = OBSGetMicVolume() * _micBoost;
             for(unsigned int i = 0; i < newSamples; i++)
-                ((int16_t *) data)[i] *= micVolume;
+            {
+                long sample = ((int16_t *) data)[i];
+                sample *= micVolume;
+                if(sample > 32767)
+                    sample = 32767;
+                else if(sample < -32767)
+                    sample = -32767;
+                ((int16_t *) data)[i] = sample;
+            }
 
             // Copy new samples into audio buffer
             mcpy(_audioBuf.Array() + _numSamples, data, newSamples * 2);
@@ -238,21 +336,25 @@ void WinVoiceCaptureDMOMethod::OnStartStream(void)
 {
     OnStopStream();
 
-    _micFilter = new MicDiscardFilter();
-    _auxSource = new VoiceCaptureDMOSource();
-    if(!_micFilter || !_auxSource || !_auxSource->Initialize())
+    if(OBSGetMicAudioSource())
     {
-        delete _micFilter; _micFilter = nullptr;
-        delete _auxSource; _auxSource = nullptr;
-        Log(TEXT("%s: DMO audio source initialization failed. Mic processing is NOT active."), LOG_NAME);
+        _micFilter = new MicDiscardFilter();
+        _auxSource = new VoiceCaptureDMOSource();
+        if(!_micFilter || !_auxSource || !_auxSource->Initialize())
+        {
+            delete _micFilter; _micFilter = nullptr;
+            delete _auxSource; _auxSource = nullptr;
+            Log(TEXT("%s: DMO audio source initialization failed. Mic processing is NOT active."), LOG_NAME);
+        }
+        else
+        {
+            OBSGetMicAudioSource()->AddAudioFilter(_micFilter);
+            OBSAddAudioSource(_auxSource);
+            Log(TEXT("%s: Supplying processed microphone audio via aux audio source."), LOG_NAME);
+        }
     }
     else
-    {
-        if(OBSGetMicAudioSource())
-            OBSGetMicAudioSource()->AddAudioFilter(_micFilter);
-        OBSAddAudioSource(_auxSource);
-        Log(TEXT("%s: Supplying processed mic audio via aux audio source."), LOG_NAME);
-    }
+        Log(TEXT("%s: Microphone input disabled in OBS settings."), LOG_NAME);
 }
 
 void WinVoiceCaptureDMOMethod::OnStopStream(void)

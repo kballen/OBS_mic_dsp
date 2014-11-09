@@ -41,6 +41,7 @@ private:
         List<int16_t> _audioBuf;
         unsigned int _numSamples;
         bool _skipNextRead;
+        float _micBoost;
 
         static const int k_SampleRate = 16000;
         static const int k_SegmentSize = k_SampleRate / 100;
