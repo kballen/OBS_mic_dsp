@@ -4,6 +4,7 @@
 #include <uuids.h>
 #include <mmreg.h>
 #include <mmdeviceapi.h>
+#include <functiondiscoverykeys_devpkey.h>
 
 #define LOG_NAME TEXT("OBS_mic_dsp (WinVoiceCaptureDMOMethod)")
 
@@ -100,6 +101,58 @@ error:
 #undef CHECK
 }
 
+static void LogEndpointInfo(int deviceIdx, EDataFlow dataFlow)
+{
+#define CHECK(x) if(FAILED(x)) goto error
+    IMMDeviceEnumerator *devEnum = nullptr;
+    IMMDeviceCollection *devColl = nullptr;
+    IMMDevice *dev = nullptr;
+    IPropertyStore *ps = nullptr;
+
+    CHECK(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&devEnum)));
+    if(deviceIdx < 0)
+    {
+        // Look up default device
+        CHECK(devEnum->GetDefaultAudioEndpoint(dataFlow, eConsole, &dev));
+    }
+    else
+    {
+        // Look up device by index
+        UINT devCount;
+        CHECK(devEnum->EnumAudioEndpoints(dataFlow, DEVICE_STATE_ACTIVE, &devColl));
+        CHECK(devColl->GetCount(&devCount));
+        if(deviceIdx < devCount)
+        {
+            CHECK(devColl->Item(deviceIdx, &dev));
+        }
+    }
+
+    if(dev)
+    {
+        PROPVARIANT friendlyName;
+        CHECK(dev->OpenPropertyStore(STGM_READ, &ps));
+        PropVariantInit(&friendlyName);
+        CHECK(ps->GetValue(PKEY_Device_FriendlyName, &friendlyName));
+#ifdef UNICODE
+        Log(TEXT("%s: Using %s device: %s%s"),
+#else
+        Log(TEXT("%s: Using %s device: %S%s"),
+#endif
+            LOG_NAME,
+            dataFlow == eCapture ? TEXT("capture") : TEXT("render"),
+            friendlyName.pwszVal,
+            deviceIdx < 0 ? TEXT(" (default)") : TEXT(""));
+        PropVariantClear(&friendlyName);
+    }
+
+error:
+    SafeRelease(ps);
+    SafeRelease(dev);
+    SafeRelease(devColl);
+    SafeRelease(devEnum);
+#undef CHECK
+}
+
 bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::Initialize(void)
 {
 #define TRACE(x) traceCall = TEXT(#x), hr = x
@@ -145,7 +198,8 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::Initialize(void)
     int micDeviceIdx = FindEndpointIndex(micDeviceId, eCapture);
     int playbackDeviceIdx = FindEndpointIndex(playbackDeviceId, eRender);
 
-    Log(TEXT("%s: Device pair (%d,%d)"), LOG_NAME, micDeviceIdx, playbackDeviceIdx);
+    LogEndpointInfo(micDeviceIdx, eCapture);
+    LogEndpointInfo(playbackDeviceIdx, eRender);
 
     TRACE(CoCreateInstance(__uuidof(CWMAudioAEC), nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&_dmo)));
 
