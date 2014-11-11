@@ -57,8 +57,8 @@ static HRESULT SetBoolProperty(IPropertyStore *ps, REFPROPERTYKEY key, bool valu
 // This sure is a garbage function.
 static int FindEndpointIndex(String deviceId, EDataFlow dataFlow)
 {
-    if(!deviceId.IsValid())
-        return -1;
+    // It seems that the voice capture DMO has trouble picking the correct devices if one of the device indicies, but
+    // not both, is -1. So, I'm modifying this function to look up the default endpoints explicitly.
 
 #define CHECK(x) if(FAILED(x)) goto error
     int rv = -1;
@@ -66,34 +66,66 @@ static int FindEndpointIndex(String deviceId, EDataFlow dataFlow)
     IMMDeviceCollection *devColl = nullptr;
     IMMDevice *dev = nullptr;
     UINT devCount;
-    LPWSTR devId;
+    LPWSTR devId = nullptr;
+    LPWSTR defaultId = nullptr;
 
     CHECK(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&devEnum)));
     CHECK(devEnum->EnumAudioEndpoints(dataFlow, DEVICE_STATE_ACTIVE, &devColl));
     CHECK(devColl->GetCount(&devCount));
-    for(UINT i = 0; i < devCount; i++)
-    {
-        CHECK(devColl->Item(i, &dev));
-        CHECK(dev->GetId(&devId));
 
-        // Why does this have to be complicated...
-#ifdef UNICODE
-        if(wcscmp(deviceId.Array(), devId) == 0)
+    if(deviceId.IsValid())
+    {
+        for(UINT i = 0; i < devCount; i++)
         {
-            // Found device
-            rv = i;
-            CoTaskMemFree(devId);
-            break;
-        }
+            CHECK(devColl->Item(i, &dev));
+            CHECK(dev->GetId(&devId));
+
+            // Why does this have to be complicated...
+#ifdef UNICODE
+            if(wcscmp(deviceId.Array(), devId) == 0)
+            {
+                // Found device
+                rv = i;
+                break;
+            }
 #else
-  #error Use Unicode.
+#error Use Unicode.
 #endif
 
-        CoTaskMemFree(devId);
+            CoTaskMemFree(devId);
+            devId = nullptr;
+            SafeRelease(dev);
+        }
+    }
+
+    // Look up the default endpoint explicitly if needed
+    if(rv < 0)
+    {
+        CHECK(devEnum->GetDefaultAudioEndpoint(dataFlow, eConsole, &dev));
+        CHECK(dev->GetId(&defaultId));
         SafeRelease(dev);
+
+        for(UINT i = 0; i < devCount; i++)
+        {
+            CHECK(devColl->Item(i, &dev));
+            CHECK(dev->GetId(&devId));
+
+            if(wcscmp(defaultId, devId) == 0)
+            {
+                // Found device
+                rv = i;
+                break;
+            }
+
+            CoTaskMemFree(devId);
+            devId = nullptr;
+            SafeRelease(dev);
+        }
     }
 
 error:
+    CoTaskMemFree(devId);
+    CoTaskMemFree(defaultId);
     SafeRelease(dev);
     SafeRelease(devColl);
     SafeRelease(devEnum);
@@ -197,6 +229,13 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::Initialize(void)
     // Look up audio endpoints
     int micDeviceIdx = FindEndpointIndex(micDeviceId, eCapture);
     int playbackDeviceIdx = FindEndpointIndex(playbackDeviceId, eRender);
+
+    // No longer allowing the DMO to choose default devices
+    if(micDeviceIdx < 0 || playbackDeviceIdx < 0)
+    {
+        Log(TEXT("%s: There was a problem looking up the default audio endpoints... mic=%d playback=%d"), LOG_NAME, micDeviceIdx, playbackDeviceIdx);
+        return false;
+    }
 
     LogEndpointInfo(micDeviceIdx, eCapture);
     LogEndpointInfo(playbackDeviceIdx, eRender);
