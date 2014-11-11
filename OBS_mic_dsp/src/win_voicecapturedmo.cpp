@@ -229,6 +229,10 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::Initialize(void)
         // Enable AGC
         if(SUCCEEDED(hr))
             TRACE(SetBoolProperty(ps, MFPKEY_WMAAECMA_FEATR_AGC, true));
+
+        // Disable microphone gain bounding - this prevents the DMO from messing with the Windows mic device volume
+        if(SUCCEEDED(hr))
+            TRACE(SetBoolProperty(ps, MFPKEY_WMAAECMA_MIC_GAIN_BOUNDER, false));
     }
     SafeRelease(ps);
 
