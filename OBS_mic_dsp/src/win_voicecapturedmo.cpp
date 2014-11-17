@@ -23,13 +23,23 @@ WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::VoiceCaptureDMOSource()
     : _dmo(nullptr),
     _numSamples(0),
     _skipNextRead(false),
-    _micBoost(0)
+    _micBoost(0),
+    _usePushToTalk(false),
+    _pttHotkeyID(0), _pttHotkey2ID(0),
+    _pttKeysDown(0),
+    _pttDelay(0),
+    _pttDelayExpires(0)
 {
 }
 
 WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::~VoiceCaptureDMOSource()
 {
     SafeRelease(_dmo);
+
+    if(_pttHotkeyID)
+        OBSDeleteHotkey(_pttHotkeyID);
+    if(_pttHotkey2ID)
+        OBSDeleteHotkey(_pttHotkey2ID);
 }
 
 static HRESULT SetVtI4Property(IPropertyStore *ps, REFPROPERTYKEY key, LONG value)
@@ -200,6 +210,12 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::Initialize(void)
     String playbackDeviceId;
     _micBoost = 1.0;
 
+    if(_pttHotkeyID) { OBSDeleteHotkey(_pttHotkeyID); _pttHotkeyID = 0; }
+    if(_pttHotkey2ID) { OBSDeleteHotkey(_pttHotkey2ID); _pttHotkey2ID = 0; }
+    _usePushToTalk = false;
+    _pttKeysDown = 0;
+    _pttDelayExpires = 0;
+
     ConfigFile cfg;
     String cfgName;
     cfgName << OBSGetAppDataPath() << TEXT("\\global.ini");
@@ -222,6 +238,18 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::Initialize(void)
                 // Audio devices
                 micDeviceId = cfg.GetString(TEXT("Audio"), TEXT("Device"));
                 playbackDeviceId = cfg.GetString(TEXT("Audio"), TEXT("PlaybackDevice"));
+
+                // Push-to-talk hotkey
+                _usePushToTalk = cfg.GetInt(TEXT("Audio"), TEXT("UsePushToTalk")) != 0;
+                _pttDelay = cfg.GetInt(TEXT("Audio"), TEXT("PushToTalkDelay"), 200);
+                if(_pttDelay < 0)
+                    _pttDelay = 0;
+                DWORD pttHotkey = cfg.GetInt(TEXT("Audio"), TEXT("PushToTalkHotkey"));
+                DWORD pttHotkey2 = cfg.GetInt(TEXT("Audio"), TEXT("PushToTalkHotkey2"));
+                if(_usePushToTalk && pttHotkey)
+                    _pttHotkeyID = OBSCreateHotkey(pttHotkey, PushToTalkHotkeyCB, (UPARAM) this);
+                if(_usePushToTalk && pttHotkey2)
+                    _pttHotkey2ID = OBSCreateHotkey(pttHotkey2, PushToTalkHotkeyCB, (UPARAM) this);
             }
         }
     }
@@ -323,6 +351,24 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::Initialize(void)
 #undef TRACE
 }
 
+void STDCALL WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::PushToTalkHotkeyCB(DWORD hotkey, UPARAM param, bool keyDown)
+{
+    VoiceCaptureDMOSource *me = (VoiceCaptureDMOSource *) param;
+
+    if(keyDown)
+    {
+        me->_pttKeysDown++;
+    }
+    else
+    {
+        me->_pttKeysDown--;
+        if(me->_pttKeysDown == 0)
+        {
+            me->_pttDelayExpires = OBSGetTotalStreamTime() + me->_pttDelay;
+        }
+    }
+}
+
 CTSTR WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::GetDeviceName(void) const
 {
     return TEXT("Voice Capture DMO");
@@ -369,8 +415,11 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::GetNextBuffer(void **buffe
                 _audioBuf.SetSize(newNumSamples);
 
             // Apply OBS mic volume level to new samples
-            // TODO: Add push to talk support somehow
-            float micVolume = OBSGetMicVolume() * _micBoost;
+            float micVolume;
+            if(_usePushToTalk && _pttKeysDown == 0 && OBSGetTotalStreamTime() >= _pttDelayExpires)
+                micVolume = 0;
+            else
+                micVolume = OBSGetMicVolume() * _micBoost;
             for(unsigned int i = 0; i < newSamples; i++)
             {
                 long sample = ((int16_t *) data)[i];

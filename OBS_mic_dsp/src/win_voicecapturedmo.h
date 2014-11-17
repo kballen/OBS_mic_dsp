@@ -43,6 +43,14 @@ private:
         bool _skipNextRead;
         float _micBoost;
 
+        // Push-to-talk hotkey support
+        static void STDCALL PushToTalkHotkeyCB(DWORD hotkey, UPARAM param, bool keyDown);
+        bool _usePushToTalk;
+        UINT _pttHotkeyID, _pttHotkey2ID;
+        int _pttKeysDown;
+        int _pttDelay;
+        UINT _pttDelayExpires;
+
         static const int k_SampleRate = 16000;
         static const int k_SegmentSize = k_SampleRate / 100;
 
