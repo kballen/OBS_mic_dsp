@@ -414,25 +414,33 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::GetNextBuffer(void **buffe
             if(newNumSamples > _audioBuf.Num())
                 _audioBuf.SetSize(newNumSamples);
 
-            // Apply OBS mic volume level to new samples
-            float micVolume;
-            if(_usePushToTalk && _pttKeysDown == 0 && OBSGetTotalStreamTime() >= _pttDelayExpires)
-                micVolume = 0;
-            else
-                micVolume = OBSGetMicVolume() * _micBoost;
-            for(unsigned int i = 0; i < newSamples; i++)
+            // Push-to-talk audio muting and volume level
+            bool pttMute = _usePushToTalk && _pttKeysDown == 0 && OBSGetTotalStreamTime() >= _pttDelayExpires;
+            float micVolume = OBSGetMicVolume() * _micBoost;
+            if(pttMute || micVolume == 0)
             {
-                long sample = ((int16_t *) data)[i];
-                sample *= micVolume;
-                if(sample > 32767)
-                    sample = 32767;
-                else if(sample < -32767)
-                    sample = -32767;
-                ((int16_t *) data)[i] = sample;
+                memset(_audioBuf.Array() + _numSamples, 0, newSamples * 2);
             }
+            else
+            {
+                if(micVolume != 1)
+                {
+                    for(unsigned int i = 0; i < newSamples; i++)
+                    {
+                        long sample = ((int16_t *) data)[i];
+                        sample *= micVolume;
+                        if(sample > 32767)
+                            sample = 32767;
+                        else if(sample < -32767)
+                            sample = -32767;
+                        ((int16_t *) data)[i] = sample;
+                    }
+                }
 
-            // Copy new samples into audio buffer
-            mcpy(_audioBuf.Array() + _numSamples, data, newSamples * 2);
+                // Copy new samples into audio buffer
+                mcpy(_audioBuf.Array() + _numSamples, data, newSamples * 2);
+            }
+            
             _numSamples = newNumSamples;
 
             // If the next call to ProcessOutput would block, force the next read to be skipped and return false
