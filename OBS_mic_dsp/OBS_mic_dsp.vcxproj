@@ -156,6 +156,9 @@
     <ProjectReference Include="..\OBS\OBSApi\OBSApi.vcxproj">
       <Project>{11a35235-dd48-41e2-8f40-825c78024bc0}</Project>
     </ProjectReference>
+    <ProjectReference Include="..\speex\win32\VS2008\libspeexdsp\libspeexdsp.vcxproj">
+      <Project>{03207781-0d1c-4db3-a71d-45c608f28dbd}</Project>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\main.cpp" />
