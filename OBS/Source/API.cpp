@@ -399,6 +399,34 @@ bool OBS::SetScene(CTSTR lpScene)
     return true;
 }
 
+bool OBS::SetSceneCollection(CTSTR lpCollection) {
+    if (bRunning)
+        return false;
+
+    App->scenesConfig.Save();
+    CTSTR collection = GetCurrentSceneCollection();
+    String strSceneCollectionPath;
+    strSceneCollectionPath = FormattedString(L"%s\\sceneCollection\\%s.xconfig", lpAppDataPath, collection);
+
+    if (!App->scenesConfig.Open(strSceneCollectionPath))
+    {
+        return false;
+    }
+
+    GlobalConfig->SetString(TEXT("General"), TEXT("SceneCollection"), lpCollection);
+    App->scenesConfig.Close();
+    App->ReloadSceneCollection();
+    ResetSceneCollectionMenu();
+    ResetApplicationName();
+    App->UpdateNotificationAreaIcon();
+    App->scenesConfig.SaveTo(String() << lpAppDataPath << "\\scenes.xconfig");
+
+    if (API != NULL)
+        ReportSwitchSceneCollections(lpCollection);
+
+    return true;
+}
+
 struct HotkeyInfo
 {
     DWORD hotkeyID;
@@ -633,6 +661,24 @@ public:
     virtual UINT GetFramesDropped() const     {return App->curFramesDropped;}
     virtual UINT GetTotalStreamTime() const   {return App->totalStreamTime;}
     virtual UINT GetBytesPerSec() const       {return App->bytesPerSec;}
+
+    virtual bool SetSceneCollection(CTSTR lpCollection, CTSTR lpScene)
+    {
+        assert(lpCollection && *lpCollection);
+
+        if (!lpCollection || !*lpCollection)
+            return false;
+
+        bool success = App->SetSceneCollection(lpCollection);
+        if (lpScene != NULL && success)
+        {
+            SetScene(lpScene, true);
+        }
+
+        return success;
+    }
+    virtual CTSTR GetSceneCollectionName() const { return App->GetCurrentSceneCollection(); }
+    virtual void GetSceneCollectionNames(StringList &list) const { return App->GetSceneCollection(list); }
 };
 
 APIInterface* CreateOBSApiInterface()
@@ -762,13 +808,17 @@ void OBSAPIInterface::HandleHotkeys()
 {
     List<DWORD> hitKeys;
 
+    bool allow_other_hotkey_modifiers = !!GlobalConfig->GetInt(TEXT("General"), TEXT("AllowOtherHotkeyModifiers"), true);
+    bool uplay_overlay_compatibility  = !!GlobalConfig->GetInt(L"General", L"UplayOverlayCompatibility", false);
+
     DWORD modifiers = 0;
     if(GetAsyncKeyState(VK_MENU) & 0x8000)
         modifiers |= HOTKEYF_ALT;
     if(GetAsyncKeyState(VK_CONTROL) & 0x8000)
         modifiers |= HOTKEYF_CONTROL;
-    if(GetAsyncKeyState(VK_SHIFT) & 0x8000)
-        modifiers |= HOTKEYF_SHIFT;
+    if (!uplay_overlay_compatibility)
+        if (GetAsyncKeyState(VK_SHIFT) & 0x8000)
+            modifiers |= HOTKEYF_SHIFT;
 
     OSEnterMutex(App->hHotkeyMutex);
 
@@ -808,7 +858,7 @@ void OBSAPIInterface::HandleHotkeys()
         else
         {
             bool bModifiersMatch = false;
-            if(GlobalConfig->GetInt(TEXT("General"), TEXT("AllowOtherHotkeyModifiers"), true))
+            if(allow_other_hotkey_modifiers)
                 bModifiersMatch = ((hotkeyModifiers & modifiers) == hotkeyModifiers); //allows other modifiers to be pressed
             else
                 bModifiersMatch = (hotkeyModifiers == modifiers);
@@ -829,7 +879,7 @@ void OBSAPIInterface::HandleHotkeys()
             }
             else
             {
-                if(bModifiersMatch)
+                if (bModifiersMatch && !(uplay_overlay_compatibility && hotkeyVK == VK_F2))
                 {
                     short keyState = GetAsyncKeyState(hotkeyVK);
                     bool bDown = (keyState & 0x8000) != 0;
