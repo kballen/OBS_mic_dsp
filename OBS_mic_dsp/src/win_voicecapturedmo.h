@@ -3,6 +3,7 @@
 
 #include "OBSPlugin.h"
 #include <dmo.h>
+#include "../../speex/include/speex/speex_preprocess.h"
 
 class WinVoiceCaptureDMOMethod : public OBSPlugin
 {
@@ -50,6 +51,9 @@ private:
         int _pttKeysDown;
         int _pttDelay;
         UINT _pttDelayExpires;
+
+        // Speex preprocessor state for post-gain noise removal
+        SpeexPreprocessState *_speexState;
 
         static const int k_SampleRate = 16000;
         static const int k_SegmentSize = k_SampleRate / 100;

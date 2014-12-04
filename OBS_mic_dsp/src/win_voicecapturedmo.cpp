@@ -5,6 +5,8 @@
 #include <mmreg.h>
 #include <mmdeviceapi.h>
 #include <functiondiscoverykeys_devpkey.h>
+#include "../../speex/include/speex/speex_types.h"
+#include "../../speex/include/speex/speex_preprocess.h"
 
 #define LOG_NAME TEXT("OBS_mic_dsp (WinVoiceCaptureDMOMethod)")
 
@@ -28,7 +30,8 @@ WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::VoiceCaptureDMOSource()
     _pttHotkeyID(0), _pttHotkey2ID(0),
     _pttKeysDown(0),
     _pttDelay(0),
-    _pttDelayExpires(0)
+    _pttDelayExpires(0),
+    _speexState(nullptr)
 {
 }
 
@@ -40,6 +43,9 @@ WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::~VoiceCaptureDMOSource()
         OBSDeleteHotkey(_pttHotkeyID);
     if(_pttHotkey2ID)
         OBSDeleteHotkey(_pttHotkey2ID);
+
+    if(_speexState)
+        speex_preprocess_state_destroy(_speexState);
 }
 
 static HRESULT SetVtI4Property(IPropertyStore *ps, REFPROPERTYKEY key, LONG value)
@@ -216,6 +222,12 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::Initialize(void)
     _pttKeysDown = 0;
     _pttDelayExpires = 0;
 
+    if(_speexState)
+    {
+        speex_preprocess_state_destroy(_speexState);
+        _speexState = nullptr;
+    }
+
     ConfigFile cfg;
     String cfgName;
     cfgName << OBSGetAppDataPath() << TEXT("\\global.ini");
@@ -267,6 +279,21 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::Initialize(void)
 
     LogEndpointInfo(micDeviceIdx, eCapture);
     LogEndpointInfo(playbackDeviceIdx, eRender);
+
+    // Initialize Speex preprocessor for post-gain noise removal if mic boost is used
+    //if(_micBoost > 1)
+    {
+        //Log(TEXT("%s: Mic boost > 1, enabling post-gain noise removal."), LOG_NAME);
+
+        _speexState = speex_preprocess_state_init(k_SegmentSize, k_SampleRate);
+        if(_speexState)
+        {
+            spx_int32_t noiseSuppress = -30;
+            speex_preprocess_ctl(_speexState, SPEEX_PREPROCESS_SET_NOISE_SUPPRESS, &noiseSuppress);
+        }
+        else
+            Log(TEXT("%s: Warning! Failed to create Speex preprocessor state for post-gain noise removal."), LOG_NAME);
+    }
 
     TRACE(CoCreateInstance(__uuidof(CWMAudioAEC), nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&_dmo)));
 
@@ -454,6 +481,12 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::GetNextBuffer(void **buffe
         {
             return false;
         }
+    }
+
+    // Apply Speex noise removal if enabled
+    if(_speexState)
+    {
+        speex_preprocess_run(_speexState, _audioBuf.Array());
     }
 
     *buffer = _audioBuf.Array();
