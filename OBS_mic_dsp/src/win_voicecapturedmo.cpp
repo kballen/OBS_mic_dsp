@@ -1,4 +1,5 @@
 #include "win_voicecapturedmo.h"
+#include <tchar.h>
 #include <wmcodecdsp.h>
 #include <propsys.h>
 #include <uuids.h>
@@ -9,6 +10,7 @@
 #include "../../speex/include/speex/speex_preprocess.h"
 
 #define LOG_NAME TEXT("OBS_mic_dsp (WinVoiceCaptureDMOMethod)")
+#define DEVICE_NAME TEXT("Voice Capture DMO")
 
 /// WinVoiceCaptureDMOMethod::MicDiscardFilter implementation ///
 
@@ -398,7 +400,7 @@ void STDCALL WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::PushToTalkHotkeyCB
 
 CTSTR WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::GetDeviceName(void) const
 {
-    return TEXT("Voice Capture DMO");
+    return DEVICE_NAME;
 }
 
 bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::GetNextBuffer(void **buffer, UINT *numFrames, QWORD *timestamp)
@@ -522,6 +524,15 @@ WinVoiceCaptureDMOMethod::~WinVoiceCaptureDMOMethod()
 void WinVoiceCaptureDMOMethod::OnStartStream(void)
 {
     OnStopStream();
+
+    for(UINT i = 0; i < OBSNumAuxAudioSources(); i++)
+    {
+        if(_tcscmp(DEVICE_NAME, OBSGetAuxAudioSource(i)->GetDeviceName2()) == 0)
+        {
+            Log(TEXT("%s: Another aux source with the same device name was found. Are there two copies of this plugin?"), LOG_NAME);
+            return;
+        }
+    }
 
     if(OBSGetMicAudioSource())
     {
