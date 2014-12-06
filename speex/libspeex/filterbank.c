@@ -53,6 +53,7 @@
 
 FilterBank *filterbank_new(int banks, spx_word32_t sampling, int len, int type)
 {
+#define CHECK_ALLOC(x) if (!(x)) { filterbank_destroy(bank); return NULL; }
    FilterBank *bank;
    spx_word32_t df;
    spx_word32_t max_mel, mel_interval;
@@ -63,16 +64,16 @@ FilterBank *filterbank_new(int banks, spx_word32_t sampling, int len, int type)
    max_mel = toBARK(EXTRACT16(sampling/2));
    mel_interval = PDIV32(max_mel,banks-1);
    
-   bank = (FilterBank*)speex_alloc(sizeof(FilterBank));
+   CHECK_ALLOC(bank = speex_alloc(sizeof(FilterBank)));
    bank->nb_banks = banks;
    bank->len = len;
-   bank->bank_left = (int*)speex_alloc(len*sizeof(int));
-   bank->bank_right = (int*)speex_alloc(len*sizeof(int));
-   bank->filter_left = (spx_word16_t*)speex_alloc(len*sizeof(spx_word16_t));
-   bank->filter_right = (spx_word16_t*)speex_alloc(len*sizeof(spx_word16_t));
+   CHECK_ALLOC(bank->bank_left = speex_alloc(len*sizeof(int)));
+   CHECK_ALLOC(bank->bank_right = speex_alloc(len*sizeof(int)));
+   CHECK_ALLOC(bank->filter_left = speex_alloc(len*sizeof(spx_word16_t)));
+   CHECK_ALLOC(bank->filter_right = speex_alloc(len*sizeof(spx_word16_t)));
    /* Think I can safely disable normalisation that for fixed-point (and probably float as well) */
 #ifndef FIXED_POINT
-   bank->scaling = (float*)speex_alloc(banks*sizeof(float));
+   CHECK_ALLOC(bank->scaling = speex_alloc(banks*sizeof(float)));
 #endif
    for (i=0;i<len;i++)
    {
@@ -121,14 +122,17 @@ FilterBank *filterbank_new(int banks, spx_word32_t sampling, int len, int type)
 
 void filterbank_destroy(FilterBank *bank)
 {
-   speex_free(bank->bank_left);
-   speex_free(bank->bank_right);
-   speex_free(bank->filter_left);
-   speex_free(bank->filter_right);
+   if (bank)
+   {
+      speex_free(bank->bank_left);
+      speex_free(bank->bank_right);
+      speex_free(bank->filter_left);
+      speex_free(bank->filter_right);
 #ifndef FIXED_POINT
-   speex_free(bank->scaling);
+      speex_free(bank->scaling);
 #endif
-   speex_free(bank);
+      speex_free(bank);
+   }
 }
 
 void filterbank_compute_bank32(FilterBank *bank, spx_word32_t *ps, spx_word32_t *mel)

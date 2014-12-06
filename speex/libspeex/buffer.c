@@ -51,18 +51,28 @@ struct SpeexBuffer_ {
 EXPORT SpeexBuffer *speex_buffer_init(int size)
 {
    SpeexBuffer *st = speex_alloc(sizeof(SpeexBuffer));
-   st->data = speex_alloc(size);
-   st->size = size;
-   st->read_ptr = 0;
-   st->write_ptr = 0;
-   st->available = 0;
+   if (st)
+   {
+      if (!(st->data = speex_alloc(size)))
+      {
+          speex_buffer_destroy(st);
+          return NULL;
+      }
+      st->size = size;
+      st->read_ptr = 0;
+      st->write_ptr = 0;
+      st->available = 0;
+   }
    return st;
 }
 
 EXPORT void speex_buffer_destroy(SpeexBuffer *st)
 {
-   speex_free(st->data);
-   speex_free(st);
+   if (st)
+   {
+      speex_free(st->data);
+      speex_free(st);
+   }
 }
 
 EXPORT int speex_buffer_write(SpeexBuffer *st, void *_data, int len)

@@ -271,7 +271,7 @@ static spx_int16_t compute_opt_delay(JitterBuffer *jitter)
 /** Initialise jitter buffer */
 EXPORT JitterBuffer *jitter_buffer_init(int step_size)
 {
-   JitterBuffer *jitter = (JitterBuffer*)speex_alloc(sizeof(JitterBuffer));
+   JitterBuffer *jitter = speex_alloc(sizeof(JitterBuffer));
    if (jitter)
    {
       int i;
@@ -327,8 +327,11 @@ EXPORT void jitter_buffer_reset(JitterBuffer *jitter)
 /** Destroy jitter buffer */
 EXPORT void jitter_buffer_destroy(JitterBuffer *jitter)
 {
-   jitter_buffer_reset(jitter);
-   speex_free(jitter);
+   if (jitter)
+   {
+      jitter_buffer_reset(jitter);
+      speex_free(jitter);
+   }
 }
 
 /** Take the following timing into consideration for future calculations */
@@ -443,9 +446,10 @@ EXPORT void jitter_buffer_put(JitterBuffer *jitter, const JitterBufferPacket *pa
       {
          jitter->packets[i].data = packet->data;
       } else {
-         jitter->packets[i].data=(char*)speex_alloc(packet->len);
-         for (j=0;j<packet->len;j++)
-            jitter->packets[i].data[j]=packet->data[j];
+         jitter->packets[i].data=speex_alloc(packet->len);
+         if (jitter->packets[i].data)
+            for (j=0;j<packet->len;j++)
+               jitter->packets[i].data[j]=packet->data[j];
       }
       jitter->packets[i].timestamp=packet->timestamp;
       jitter->packets[i].span=packet->span;

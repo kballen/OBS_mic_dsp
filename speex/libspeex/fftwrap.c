@@ -36,6 +36,7 @@
 #include "config.h"
 #endif
 
+#include "fftwrap.h"
 #include "arch.h"
 #include "os_support.h"
 
@@ -85,8 +86,16 @@ void *spx_fft_init(int size)
 {
    struct drft_lookup *table;
    table = speex_alloc(sizeof(struct drft_lookup));
-   spx_drft_init((struct drft_lookup *)table, size);
-   return (void*)table;
+   if (table)
+   {
+      spx_drft_init(table, size);
+      if (!(table->trigcache && table->splitcache))
+      {
+          spx_fft_destroy(table);
+          return NULL;
+      }
+   }
+   return table;
 }
 
 void spx_fft_destroy(void *table)
@@ -136,21 +145,27 @@ struct mkl_config {
 
 void *spx_fft_init(int size)
 {
-  struct mkl_config *table = (struct mkl_config *) speex_alloc(sizeof(struct mkl_config));
-  table->N = size;
-  DftiCreateDescriptor(&table->desc, DFTI_SINGLE, DFTI_REAL, 1, size);
-  DftiSetValue(table->desc, DFTI_PACKED_FORMAT, DFTI_PACK_FORMAT);
-  DftiSetValue(table->desc, DFTI_PLACEMENT, DFTI_NOT_INPLACE);
-  DftiSetValue(table->desc, DFTI_FORWARD_SCALE, 1.0f / size);
-  DftiCommitDescriptor(table->desc);
+  struct mkl_config *table = speex_alloc(sizeof(struct mkl_config));
+  if (table)
+  {
+    table->N = size;
+    DftiCreateDescriptor(&table->desc, DFTI_SINGLE, DFTI_REAL, 1, size);
+    DftiSetValue(table->desc, DFTI_PACKED_FORMAT, DFTI_PACK_FORMAT);
+    DftiSetValue(table->desc, DFTI_PLACEMENT, DFTI_NOT_INPLACE);
+    DftiSetValue(table->desc, DFTI_FORWARD_SCALE, 1.0f / size);
+    DftiCommitDescriptor(table->desc);
+  }
   return table;
 }
 
 void spx_fft_destroy(void *table)
 {
-  struct mkl_config *t = (struct mkl_config *) table;
-  DftiFreeDescriptor(t->desc);
-  speex_free(table);
+  if (table)
+  {
+    struct mkl_config *t = table;
+    DftiFreeDescriptor(t->desc);
+    speex_free(table);
+  }
 }
 
 void spx_fft(void *table, spx_word16_t *in, spx_word16_t *out)
@@ -179,25 +194,31 @@ struct fftw_config {
 
 void *spx_fft_init(int size)
 {
-  struct fftw_config *table = (struct fftw_config *) speex_alloc(sizeof(struct fftw_config));
-  table->in = fftwf_malloc(sizeof(float) * (size+2));
-  table->out = fftwf_malloc(sizeof(float) * (size+2));
+  struct fftw_config *table = speex_alloc(sizeof(struct fftw_config));
+  if (table)
+  {
+    table->in = fftwf_malloc(sizeof(float) * (size+2));
+    table->out = fftwf_malloc(sizeof(float) * (size+2));
 
-  table->fft = fftwf_plan_dft_r2c_1d(size, table->in, (fftwf_complex *) table->out, FFTW_PATIENT);
-  table->ifft = fftwf_plan_dft_c2r_1d(size, (fftwf_complex *) table->in, table->out, FFTW_PATIENT);
+    table->fft = fftwf_plan_dft_r2c_1d(size, table->in, (fftwf_complex *) table->out, FFTW_PATIENT);
+    table->ifft = fftwf_plan_dft_c2r_1d(size, (fftwf_complex *) table->in, table->out, FFTW_PATIENT);
 
-  table->N = size;
+    table->N = size;
+  }
   return table;
 }
 
 void spx_fft_destroy(void *table)
 {
-  struct fftw_config *t = (struct fftw_config *) table;
-  fftwf_destroy_plan(t->fft);
-  fftwf_destroy_plan(t->ifft);
-  fftwf_free(t->in);
-  fftwf_free(t->out);
-  speex_free(table);
+  if (table)
+  {
+    struct fftw_config *t = table;
+    fftwf_destroy_plan(t->fft);
+    fftwf_destroy_plan(t->ifft);
+    fftwf_free(t->in);
+    fftwf_free(t->out);
+    speex_free(table);
+  }
 }
 
 
@@ -253,19 +274,25 @@ struct kiss_config {
 void *spx_fft_init(int size)
 {
    struct kiss_config *table;
-   table = (struct kiss_config*)speex_alloc(sizeof(struct kiss_config));
-   table->forward = kiss_fftr_alloc(size,0,NULL,NULL);
-   table->backward = kiss_fftr_alloc(size,1,NULL,NULL);
-   table->N = size;
+   table = speex_alloc(sizeof(struct kiss_config));
+   if (table)
+   {
+      table->forward = kiss_fftr_alloc(size,0,NULL,NULL);
+      table->backward = kiss_fftr_alloc(size,1,NULL,NULL);
+      table->N = size;
+   }
    return table;
 }
 
 void spx_fft_destroy(void *table)
 {
-   struct kiss_config *t = (struct kiss_config *)table;
-   kiss_fftr_free(t->forward);
-   kiss_fftr_free(t->backward);
-   speex_free(table);
+   if (table)
+   {
+      struct kiss_config *t = table;
+      kiss_fftr_free(t->forward);
+      kiss_fftr_free(t->backward);
+      speex_free(table);
+   }
 }
 
 #ifdef FIXED_POINT
