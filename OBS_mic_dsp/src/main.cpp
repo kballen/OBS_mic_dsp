@@ -44,7 +44,8 @@ extern "C" __declspec(dllexport) CTSTR GetPluginName(void)
 
 extern "C" __declspec(dllexport) CTSTR GetPluginDescription(void)
 {
-    return TEXT("Installs a DSP that automatically improves the quality of the microphone audio.");
+    return TEXT("Installs a DSP that automatically improves the quality of the microphone audio.\n\n")
+        TEXT("Version ") TEXT(PLUGIN_VERSION_STRING);
 }
 
 BOOL CALLBACK DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
