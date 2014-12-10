@@ -27,6 +27,7 @@ WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::VoiceCaptureDMOSource()
     : _dmo(nullptr),
     _numSamples(0),
     _skipNextRead(false),
+    _micVolume(0),
     _micBoost(0),
     _usePushToTalk(false),
     _pttHotkeyID(0), _pttHotkey2ID(0),
@@ -216,6 +217,7 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::Initialize(void)
     // Get OBS settings
     String micDeviceId;
     String playbackDeviceId;
+    _micVolume = 1.0;
     _micBoost = 1.0;
 
     if(_pttHotkeyID) { OBSDeleteHotkey(_pttHotkeyID); _pttHotkeyID = 0; }
@@ -241,6 +243,9 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::Initialize(void)
             cfgName.Clear() << OBSGetAppDataPath() << TEXT("\\profiles\\") << cfgProfile << TEXT(".ini");
             if(cfg.Open(cfgName))
             {
+                // Mic volume
+                _micVolume = cfg.GetFloat(TEXT("Audio"), TEXT("MicVolume"), 1.0);
+
                 // Mic boost
                 int micBoost = cfg.GetInt(TEXT("Audio"), TEXT("MicBoostMultiple"), 1);
                 if(micBoost < 1)
@@ -445,19 +450,19 @@ bool WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::GetNextBuffer(void **buffe
 
             // Push-to-talk audio muting and volume level
             bool pttMute = _usePushToTalk && _pttKeysDown == 0 && OBSGetTotalStreamTime() >= _pttDelayExpires;
-            float micVolume = OBSGetMicVolume() * _micBoost;
-            if(pttMute || micVolume == 0)
+            float micGain = _micVolume * _micBoost;
+            if(pttMute || micGain == 0)
             {
                 memset(_audioBuf.Array() + _numSamples, 0, newSamples * 2);
             }
             else
             {
-                if(micVolume != 1)
+                if(micGain != 1)
                 {
                     for(unsigned int i = 0; i < newSamples; i++)
                     {
                         long sample = ((int16_t *) data)[i];
-                        sample *= micVolume;
+                        sample *= micGain;
                         if(sample > 32767)
                             sample = 32767;
                         else if(sample < -32767)
@@ -506,6 +511,11 @@ void WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::ReleaseBuffer(void)
         mcpy(_audioBuf.Array(), _audioBuf.Array() + k_SegmentSize, (_numSamples - k_SegmentSize) * 2);
         _numSamples -= k_SegmentSize;
     }
+}
+
+void WinVoiceCaptureDMOMethod::VoiceCaptureDMOSource::SetMicVolume(float micVolume)
+{
+    _micVolume = micVolume;
 }
 
 /// WinVoiceCaptureDMOMethod implementation ///
@@ -574,5 +584,6 @@ void WinVoiceCaptureDMOMethod::OnStopStream(void)
 
 void WinVoiceCaptureDMOMethod::OnMicVolumeChanged(float level, bool muted, bool finalValue)
 {
-    // I don't actually need this callback.
+    if(_auxSource)
+        _auxSource->SetMicVolume(level);
 }

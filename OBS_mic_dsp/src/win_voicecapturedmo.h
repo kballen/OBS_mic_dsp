@@ -31,6 +31,7 @@ private:
         ~VoiceCaptureDMOSource();
 
         bool Initialize(void);
+        void SetMicVolume(float micVolume);
 
     protected:
         CTSTR GetDeviceName(void) const;
@@ -42,6 +43,7 @@ private:
         List<int16_t> _audioBuf;
         unsigned int _numSamples;
         bool _skipNextRead;
+        float _micVolume;
         float _micBoost;
 
         // Push-to-talk hotkey support
