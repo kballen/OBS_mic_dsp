@@ -3,7 +3,7 @@
 
 #include "../../OBS/OBSApi/OBSApi.h"
 
-#define PLUGIN_VERSION_STRING "1.0"
+#define PLUGIN_VERSION_STRING "1.1"
 
 class OBSPlugin
 {
